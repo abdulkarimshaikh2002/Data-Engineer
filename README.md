@@ -1,2 +1,11 @@
-# Data-Engineer
-Projects and resources on Data Engineering, including data ingestion, ETL pipelines, transformation, modeling, and orchestration. Demonstrates scalable solutions with Python, SQL, Spark, Airflow, and cloud platforms for building efficient data pipelines.
+# Data Engineer
+
+This repository contains projects, scripts, and resources related to **Data Engineering**.  
+It covers data ingestion, ETL pipelines, transformation, data modeling, and workflow orchestration.  
+
+## 🔑 Features
+- Data ingestion and ETL examples  
+- Data transformation with Python & SQL  
+- Big data processing with Apache Spark  
+- Workflow orchestration using Airflow  
+- Cloud-based pipeline demonstrations  
