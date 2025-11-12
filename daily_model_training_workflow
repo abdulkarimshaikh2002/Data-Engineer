@@ -1,0 +1,131 @@
+from airflow import DAG
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+from datetime import datetime
+from random import randint
+
+# ------------------------------------------------------
+# Step 1: Define Python functions
+# ------------------------------------------------------
+
+def validate_data(**context):
+    """Simulates data validation."""
+    print("✅ Data validation done!")
+    context['ti'].xcom_push(key='validation_status', value='passed')
+    return 'passed'
+
+def train_model(model_name, **context):
+    """Simulates model training and returns random accuracy."""
+    accuracy = randint(70, 100)
+    print(f"Model {model_name} trained with accuracy {accuracy}%")
+    return accuracy
+
+def choose_best_model(**context):
+    """Pull accuracies from all training tasks and branch."""
+    accuracies = context['ti'].xcom_pull(
+        task_ids=['train_model_A', 'train_model_B', 'train_model_C'],
+        key='return_value'
+    )
+
+    accuracies = [a for a in accuracies if a is not None]
+    best = max(accuracies)
+    print(f"🏆 Best accuracy: {best}%")
+
+    if best >= 90:
+        return 'high_accuracy'
+    else:
+        return 'low_accuracy'
+
+# ------------------------------------------------------
+# Step 2: Define the DAG
+# ------------------------------------------------------
+
+with DAG(
+    dag_id='daily_model_training_workflow',
+    start_date=datetime(2025, 11, 12),
+    schedule_interval=None,
+    catchup=False,
+    tags=['practice', 'final', 'airflow']
+) as dag:
+
+    # Step 3: Define tasks
+
+    start = BashOperator(
+        task_id='start',
+        bash_command='echo "🚀 Pipeline started for {{ ds }}"'
+    )
+
+    extract = BashOperator(
+        task_id='extract_data',
+        bash_command='echo "Extracting data for {{ ds }}"'
+    )
+
+    validate = PythonOperator(
+        task_id='validate_data',
+        python_callable=validate_data,
+        provide_context=True
+    )
+
+    # Run extract & validate in parallel
+    start >> [extract, validate]
+
+    # Train 3 models
+    train_A = PythonOperator(
+        task_id='train_model_A',
+        python_callable=train_model,
+        op_kwargs={'model_name': 'A'},
+        provide_context=True
+    )
+
+    train_B = PythonOperator(
+        task_id='train_model_B',
+        python_callable=train_model,
+        op_kwargs={'model_name': 'B'},
+        provide_context=True
+    )
+
+    train_C = PythonOperator(
+        task_id='train_model_C',
+        python_callable=train_model,
+        op_kwargs={'model_name': 'C'},
+        provide_context=True
+    )
+
+    # Connect extract and validate to all training tasks
+    extract >> [train_A, train_B, train_C]
+    validate >> [train_A, train_B, train_C]
+
+    # Choose best model
+    choose_best = BranchPythonOperator(
+        task_id='choose_best_model',
+        python_callable=choose_best_model,
+        provide_context=True
+    )
+
+    [train_A, train_B, train_C] >> choose_best
+
+    # Branching tasks
+    high_accuracy = BashOperator(
+        task_id='high_accuracy',
+        bash_command=(
+            'echo "🎯 High accuracy achieved! Model ready for deployment on {{ ds }}" '
+            '> /tmp/model_report_{{ ds }}.txt'
+        )
+    )
+
+    low_accuracy = BashOperator(
+        task_id='low_accuracy',
+        bash_command=(
+            'echo "⚠️ Accuracy below target. Retraining required for {{ ds }}" '
+            '> /tmp/model_report_{{ ds }}.txt'
+        )
+    )
+
+    choose_best >> [high_accuracy, low_accuracy]
+
+    end = BashOperator(
+        task_id='end',
+        bash_command='echo "✅ Pipeline completed successfully for {{ ds }}"'
+    )
+
+    [high_accuracy, low_accuracy] >> end
